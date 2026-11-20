@@ -1,0 +1,142 @@
+name: Build ApexOS ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional GitHub Release tag (leave blank for automatic date tag)"
+        type: string
+        required: false
+        default: ""
+  # Uncomment below to automatically rebuild a fresh ISO on the 1st of every month:
+  # schedule:
+  #   - cron: "0 4 1 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build-iso:
+    name: Build ApexOS (Arch x86-64-v3 + NVIDIA + KDE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Free up disk space on GitHub runner
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/local/graalvm \
+            /usr/share/swift || true
+          sudo docker system prune -af || true
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Ensure build scripts are executable
+        run: |
+          chmod +x build-iso.sh ci-container-build.sh profiledef.sh
+
+      - name: Build bootable ISO inside Arch Linux container
+        run: |
+          docker run --rm --privileged \
+            -v "${{ github.workspace }}:/build" \
+            -v "/dev:/dev" \
+            -w /build \
+            archlinux:latest \
+            bash /build/ci-container-build.sh
+
+      - name: Prepare ISO artifacts, checksums, and split chunks if > 1.9 GB
+        id: package
+        run: |
+          mkdir -p release-assets
+          ISO_PATH=$(ls -1 out/*.iso | head -n 1)
+          if [[ -z "${ISO_PATH}" || ! -f "${ISO_PATH}" ]]; then
+            echo "ERROR: No .iso file found in out/"
+            exit 1
+          fi
+
+          ISO_NAME=$(basename "${ISO_PATH}")
+          ISO_SIZE_BYTES=$(stat -c%s "${ISO_PATH}")
+          ISO_SIZE_HUMAN=$(du -h "${ISO_PATH}" | cut -f1)
+          echo "Built ${ISO_NAME} (${ISO_SIZE_HUMAN})"
+
+          (cd out && sha256sum "${ISO_NAME}" > "../release-assets/${ISO_NAME}.sha256")
+
+          # GitHub Releases enforces a 2 GB per-file cap; split at 1800 MB when needed
+          MAX_SINGLE_BYTES=$((1900 * 1024 * 1024))
+          if (( ISO_SIZE_BYTES > MAX_SINGLE_BYTES )); then
+            echo "ISO exceeds 1.9 GB (${ISO_SIZE_HUMAN}); splitting into 1.8 GB parts for GitHub Releases..."
+            split -b 1800M -d -a 2 "${ISO_PATH}" "release-assets/${ISO_NAME}.part"
+            echo "split=true" >> "${GITHUB_OUTPUT}"
+
+            cat > release-assets/rejoin-iso.sh <<EOF
+          #!/usr/bin/env bash
+          set -e
+          echo "Rejoining ${ISO_NAME}..."
+          cat ${ISO_NAME}.part* > "${ISO_NAME}"
+          sha256sum -c "${ISO_NAME}.sha256"
+          echo "Done! Verified ${ISO_NAME} is ready to flash."
+          EOF
+            chmod +x release-assets/rejoin-iso.sh
+
+            cat > release-assets/rejoin-iso.bat <<EOF
+          @echo off
+          echo Rejoining ${ISO_NAME}...
+          copy /b ${ISO_NAME}.part* "${ISO_NAME}"
+          echo Done! Verify SHA256 against ${ISO_NAME}.sha256 before flashing.
+          pause
+          EOF
+          else
+            cp "${ISO_PATH}" "release-assets/${ISO_NAME}"
+            echo "split=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          TAG="${{ inputs.release_tag }}"
+          if [[ -z "${TAG}" ]]; then
+            TAG="ApexOS-$(date +%Y.%m.%d)-${{ github.run_number }}"
+          fi
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "iso_name=${ISO_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "iso_size=${ISO_SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          ls -lh release-assets/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.tag }}
+          name: "ApexOS — ${{ steps.package.outputs.tag }}"
+          draft: false
+          prerelease: false
+          files: release-assets/*
+          body: |
+            ## ApexOS Gaming Edition (Arch x86-64-v3 + NVIDIA + KDE Plasma)
+
+            - **ISO File:** `${{ steps.package.outputs.iso_name }}` (`${{ steps.package.outputs.iso_size }}`)
+            - **Installer:** Full **Calamares** graphical installer with custom `ApexOS` branding & 4-slide slideshow
+            - **Kernel & Drivers:** BORE low-latency gaming kernel (`scx_lavd`), NVIDIA Open Kernel Modules, Wayland KMS, Glass Squircle Plymouth splash
+            - **Gaming Stack:** Steam, Proton, Gamescope, GameMode, MangoHud, NTSYNC, Lutris, Winetricks
+            - **Preinstalled Apps:** Brave Browser, Shelly Package Manager, Krita, VLC, ProtonVPN, LibreOffice Fresh, MyDesktop Club Web App
+
+            ### How to Rejoin (if split into `.part*` files)
+            Download all `.part*` files and the `.sha256` file into the same folder, then run:
+            - **Linux / macOS:**
+              ```bash
+              cat ${{ steps.package.outputs.iso_name }}.part* > ${{ steps.package.outputs.iso_name }}
+              sha256sum -c ${{ steps.package.outputs.iso_name }}.sha256
+              ```
+              *(Or run `./rejoin-iso.sh`)*
+            - **Windows:**
+              Run `rejoin-iso.bat` (or `copy /b ${{ steps.package.outputs.iso_name }}.part* ${{ steps.package.outputs.iso_name }}`).
+
+            ### Live Session Login
+            - Auto-logs in as user **`apex`** (password: **`apex`**) into KDE Plasma Wayland.
