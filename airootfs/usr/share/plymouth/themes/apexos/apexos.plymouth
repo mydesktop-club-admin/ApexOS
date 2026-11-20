@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=ApexOS
+Description=ApexOS Glass Squircle Boot Splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/apexos
+ScriptFile=/usr/share/plymouth/themes/apexos/apexos.script

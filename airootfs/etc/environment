@@ -1,0 +1,22 @@
+# ApexOS — Global NVIDIA Wayland + Steam / Proton Gaming Environment
+
+# Hardware video acceleration & Wayland on NVIDIA
+LIBVA_DRIVER_NAME=nvidia
+NVD_BACKEND=direct
+__GLX_VENDOR_LIBRARY_NAME=nvidia
+ELECTRON_OZONE_PLATFORM_HINT=auto
+
+# NVIDIA Shader Disk Cache (10 GB, skip aggressive cleanup to eliminate in-game stutter)
+__GL_SHADER_DISK_CACHE=1
+__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+__GL_SHADER_DISK_CACHE_SIZE=10737418240
+
+# Proton / DXVK / VKD3D NVIDIA Optimizations (DLSS, Reflex, NVAPI, Async)
+PROTON_ENABLE_NVAPI=1
+PROTON_HIDE_NVIDIA_GPU=0
+DXVK_STATE_CACHE=1
+DXVK_LOG_LEVEL=none
+VKD3D_DEBUG=none
+
+# Better MangoHud OpenGL/Vulkan hooking
+MANGOHUD_DLSYM=1

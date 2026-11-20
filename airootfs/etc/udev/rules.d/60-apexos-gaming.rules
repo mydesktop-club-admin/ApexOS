@@ -1,0 +1,13 @@
+# ApexOS — Optimal NVMe/SSD I/O Schedulers & NTSYNC user access
+
+# NVMe drives: bypass software queue scheduler for lowest latency
+ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+
+# SATA/SAS SSDs: use mq-deadline for consistent game asset streaming
+ACTION=="add|change", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+
+# Spinning HDDs: use bfq to prevent desktop stalls while loading games
+ACTION=="add|change", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
+
+# Allow desktop users direct access to /dev/ntsync for Proton
+KERNEL=="ntsync", MODE="0660", TAG+="uaccess"

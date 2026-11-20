@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Launches mydesktop.club as a clean, standalone desktop web app using Brave Browser.
+
+if command -v brave >/dev/null 2>&1; then
+  exec brave --app="https://mydesktop.club" --class="mydesktop-club" --name="mydesktop-club" "$@"
+elif command -v brave-browser >/dev/null 2>&1; then
+  exec brave-browser --app="https://mydesktop.club" --class="mydesktop-club" --name="mydesktop-club" "$@"
+else
+  exec xdg-open "https://mydesktop.club"
+fi

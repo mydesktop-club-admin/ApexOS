@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ApexOS First-Boot User Setup (runs once per user account)
+
+MARKER="${HOME}/.config/apexos-firstboot.done"
+[[ -f "${MARKER}" ]] && exit 0
+
+mkdir -p "${HOME}/.config" "${HOME}/Desktop"
+
+# Place clean desktop shortcuts for quick access (installer shortcut appears only in live session)
+for app in \
+  /usr/share/applications/install-apexos.desktop \
+  /usr/share/applications/mydesktop-club.desktop \
+  /usr/share/applications/steam.desktop \
+  /usr/share/applications/brave-browser.desktop; do
+  if [[ -f "$app" ]]; then
+    cp -n "$app" "${HOME}/Desktop/" || true
+    chmod +x "${HOME}/Desktop/$(basename "$app")" || true
+  fi
+done
+
+# Apply default ApexOS Obsidian Glass wallpaper in KDE Plasma
+if command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then
+  plasma-apply-wallpaperimage /usr/share/wallpapers/ApexOS/contents/images/3840x2160.jpg || true
+fi
+
+# Enable Flathub for Shelly Flatpak support
+if command -v flatpak >/dev/null 2>&1; then
+  flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+fi
+
+touch "${MARKER}"

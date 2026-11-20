@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MyDesktop Club
+GenericName=Wallpapers & MyDesktop Studio
+Comment=Browse 4K Wallpapers, WallScan, Clubhouse, and MyDesktop Studio
+Exec=/usr/local/bin/mydesktop-club-app
+Icon=apexos-logo
+Terminal=false
+Categories=Graphics;Network;AudioVideo;
+StartupWMClass=mydesktop-club
+Keywords=wallpaper;desktop;studio;mydesktop;apexos;

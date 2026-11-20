@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Type = Package
+Target = cachyos-calamares
+Target = sddm
+
+[Action]
+Description = Applying ApexOS Calamares branding and live desktop configuration...
+When = PostTransaction
+Exec = /bin/bash /usr/local/bin/apexos-post-pacstrap.sh

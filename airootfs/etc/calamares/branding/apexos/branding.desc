@@ -1,0 +1,35 @@
+---
+componentName: apexos
+
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 1020px,640px
+windowPlacement: center
+
+strings:
+    productName:         "ApexOS"
+    shortProductName:    "ApexOS"
+    version:             "Rolling"
+    shortVersion:        "Rolling"
+    versionedName:       "ApexOS Gaming Edition"
+    shortVersionedName:  "ApexOS"
+    bootloaderEntryName: "ApexOS"
+    productUrl:          "https://mydesktop.club"
+    supportUrl:          "https://mydesktop.club"
+    knownIssuesUrl:      "https://mydesktop.club"
+    releaseNotesUrl:     "https://mydesktop.club"
+
+images:
+    productLogo:         "logo.png"
+    productIcon:         "icon.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+style:
+    SidebarBackground:        "#0A0E17"
+    SidebarText:              "#CBD5E1"
+    SidebarTextCurrent:       "#FFFFFF"
+    SidebarBackgroundCurrent: "#0A84FF"

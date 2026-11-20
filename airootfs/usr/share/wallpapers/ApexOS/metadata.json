@@ -1,0 +1,13 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "hello@mydesktop.club",
+        "Name": "mydesktop.club"
+      }
+    ],
+    "Id": "ApexOS",
+    "License": "CC-BY-SA-4.0",
+    "Name": "ApexOS Obsidian Glass"
+  }
+}

@@ -1,0 +1,42 @@
+# ApexOS Plymouth Boot Splash Script (Glass Squircle Theme)
+
+Window.SetBackgroundTopColor(0.027, 0.039, 0.059);
+Window.SetBackgroundBottomColor(0.027, 0.039, 0.059);
+
+splash_img = Image("splash.png");
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+target_w = Math.Min(960, Math.Int(screen_w * 0.62));
+target_h = Math.Int(target_w * 540 / 960);
+scaled_splash = splash_img.Scale(target_w, target_h);
+
+splash_sprite = Sprite(scaled_splash);
+splash_sprite.SetX(Math.Int((screen_w - target_w) / 2));
+splash_sprite.SetY(Math.Int((screen_h - target_h) / 2) - 20);
+splash_sprite.SetZ(10);
+
+# Subtle animated loading pulse bar beneath the wordmark
+bar_w = Math.Int(target_w * 0.28);
+bar_h = 4;
+bar_x = Math.Int((screen_w - bar_w) / 2);
+bar_y = Math.Int((screen_h + target_h) / 2) + 12;
+
+status_sprite = Sprite();
+status_sprite.SetX(bar_x);
+status_sprite.SetY(bar_y);
+status_sprite.SetZ(20);
+
+progress_val = 0.15;
+fun progress_callback(duration, progress) {
+  progress_val = Math.Max(0.12, Math.Min(1.0, progress));
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+tick = 0;
+fun refresh_callback() {
+  tick++;
+  pulse = 0.72 + 0.28 * Math.Sin(tick / 14.0);
+  splash_sprite.SetOpacity(pulse);
+}
+Plymouth.SetRefreshFunction(refresh_callback);

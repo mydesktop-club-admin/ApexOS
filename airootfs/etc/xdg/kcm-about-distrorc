@@ -1,0 +1,6 @@
+[General]
+LogoPath=/usr/share/pixmaps/apexos-logo.png
+Website=https://mydesktop.club
+Variant=NVIDIA + KDE Plasma Gaming Edition
+UseOSReleaseVersion=false
+Version=Rolling

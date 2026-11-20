@@ -1,0 +1,3 @@
+# ApexOS — Default sched-ext gaming scheduler (scx_lavd for low-latency frame pacing)
+default_sched = "scx_lavd"
+default_mode = "Gaming"

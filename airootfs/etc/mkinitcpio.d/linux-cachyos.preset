@@ -1,0 +1,5 @@
+# mkinitcpio preset for ApexOS live ISO
+ALL_kver="/boot/vmlinuz-linux-cachyos"
+PRESETS=('archiso')
+archiso_config="/etc/mkinitcpio.conf"
+archiso_image="/boot/initramfs-linux-cachyos.img"

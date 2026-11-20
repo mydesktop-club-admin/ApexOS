@@ -1,0 +1,9 @@
+NAME="ApexOS"
+PRETTY_NAME="ApexOS Gaming Edition"
+ID=apexos
+ID_LIKE="arch"
+BUILD_ID=rolling
+ANSI_COLOR="38;2;10;132;255"
+HOME_URL="https://mydesktop.club"
+SUPPORT_URL="https://mydesktop.club"
+LOGO=apexos-logo
