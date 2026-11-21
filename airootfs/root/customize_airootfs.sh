@@ -48,22 +48,35 @@ systemctl enable nvidia-resume.service || true
 systemctl disable NetworkManager-wait-online.service || true
 systemctl mask NetworkManager-wait-online.service || true
 
-# 4. Pre-enable Breeze Dark for KDE Plasma (only if no custom theme bundle provided kdeglobals)
+# 4. Set ApexOS Dark as the default KDE Plasma 6 Global Theme, Plasma style & splash
 mkdir -p /etc/skel/.config
-if [[ ! -f /etc/skel/.config/kdeglobals ]]; then
-  cat > /etc/skel/.config/kdeglobals <<'EOF'
+cat > /etc/skel/.config/kdeglobals <<'EOF'
 [General]
-ColorScheme=BreezeDark
-Name=Breeze Dark
+ColorScheme=ApexOSDark
+Name=ApexOS Dark
+
+[Icons]
+Theme=breeze-dark
 
 [KDE]
-LookAndFeelPackage=org.kde.breezedark.desktop
+LookAndFeelPackage=org.apexos.dark
 SingleClick=false
+widgetStyle=Breeze
 EOF
-fi
+
+cat > /etc/skel/.config/plasmarc <<'EOF'
+[Theme]
+name=ApexOSDark
+EOF
+
+cat > /etc/skel/.config/ksplashrc <<'EOF'
+[KSplash]
+Engine=KSplashQML
+Theme=org.apexos.dark
+EOF
 
 # Sync skel updates to live user
-cp -rn /etc/skel/. /home/apex/ || true
+cp -af /etc/skel/. /home/apex/ || true
 chown -R apex:apex /home/apex
 
 # Remove one-shot build hook so it never re-runs after ISO creation

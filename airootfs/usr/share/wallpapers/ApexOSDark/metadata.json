@@ -1,0 +1,13 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "hello@mydesktop.club",
+        "Name": "ApexOS"
+      }
+    ],
+    "Id": "ApexOSDark",
+    "License": "CC-BY-SA-4.0",
+    "Name": "ApexOS Dark"
+  }
+}

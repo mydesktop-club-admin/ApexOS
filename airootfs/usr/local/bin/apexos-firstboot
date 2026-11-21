@@ -20,7 +20,7 @@ for app in \
   fi
 done
 
-# Configure Windows 11 muscle-memory defaults (double-click files + Win+E, Win+Shift+S, Ctrl+Shift+Esc, Win+D)
+# Configure Windows muscle-memory defaults (double-click files + Win+E, Win+Shift+S, Ctrl+Shift+Esc, Win+D)
 KWC="$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)"
 if [[ -n "${KWC}" ]]; then
   "${KWC}" --file kdeglobals --group KDE --key SingleClick false || true
@@ -31,38 +31,36 @@ if [[ -n "${KWC}" ]]; then
 fi
 
 # Wait briefly for PlasmaShell D-Bus service to come up on first login
-for _ in $(seq 1 20); do
+for _ in $(seq 1 25); do
   if dbus-send --session --print-reply --dest=org.kde.plasmashell /PlasmaShell org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-# Set the white ApexOS screen emblem as the default KDE Application Launcher icon
-if [[ -f /usr/share/pixmaps/apexos-launcher-white.svg ]]; then
-  PLASMA_JS='var pList = panels();
-for (var i = 0; i < pList.length; i++) {
-  var wList = pList[i].widgets();
-  for (var j = 0; j < wList.length; j++) {
-    var w = wList[j];
-    if (w.type === "org.kde.plasma.kickoff" || w.type === "org.kde.plasma.kicker" || w.type === "org.kde.plasma.kickerdash") {
-      w.currentConfigGroup = ["General"];
-      w.writeConfig("icon", "/usr/share/pixmaps/apexos-launcher-white.svg");
-    }
-  }
-}'
-  QDBUS_BIN="$(command -v qdbus6 || command -v qdbus || true)"
-  if [[ -n "${QDBUS_BIN}" ]]; then
-    "${QDBUS_BIN}" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "${PLASMA_JS}" || true
-  else
-    dbus-send --session --dest=org.kde.plasmashell --type=method_call \
-      /PlasmaShell org.kde.PlasmaShell.evaluateScript "string:${PLASMA_JS}" || true
-  fi
+# Apply ApexOS Dark as the default Global Theme (with its non-floating, left-aligned panel & 4K wallpaper)
+if command -v plasma-apply-lookandfeel >/dev/null 2>&1 && [[ -d /usr/share/plasma/look-and-feel/org.apexos.dark ]]; then
+  plasma-apply-lookandfeel -a org.apexos.dark || true
 fi
 
-# Apply default ApexOS Obsidian Glass wallpaper in KDE Plasma (skip if custom theme already configured wallpaper)
-if command -v plasma-apply-wallpaperimage >/dev/null 2>&1 && [[ ! -f "${HOME}/.config/apexos-theme-installed" ]]; then
-  plasma-apply-wallpaperimage /usr/share/wallpapers/ApexOS/contents/images/3840x2160.jpg || true
+# Clear any auto-seeded stock KDE favorites in KActivitiesStats so Kickoff cleanly imports all 14 ApexOS default favorites
+KACT_DB="${HOME}/.local/share/kactivitymanagerd/resources/database"
+if [[ -f "${KACT_DB}" ]] && command -v python3 >/dev/null 2>&1; then
+  python3 -c "import sqlite3; c=sqlite3.connect('${KACT_DB}'); c.execute(\"DELETE FROM ResourceLink WHERE initiatingAgent='org.kde.plasma.favorites.applications'\"); c.commit(); c.close()" >/dev/null 2>&1 || true
+fi
+
+# Ensure the bottom panel is non-floating with Application Launcher, 14 default favorites, and ordered Icon-Only Task Manager aligned left
+if [[ -x /usr/local/bin/apexos-layout-switcher ]]; then
+  /usr/local/bin/apexos-layout-switcher default || true
+fi
+
+# Apply the ApexOS Dark 4K hex-glow wallpaper
+if command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then
+  if [[ -f /usr/share/wallpapers/ApexOSDark/contents/images/3840x2160.jpg ]]; then
+    plasma-apply-wallpaperimage /usr/share/wallpapers/ApexOSDark/contents/images/3840x2160.jpg || true
+  elif [[ -f /usr/share/wallpapers/ApexOS/contents/images/3840x2160.jpg ]]; then
+    plasma-apply-wallpaperimage /usr/share/wallpapers/ApexOS/contents/images/3840x2160.jpg || true
+  fi
 fi
 
 # Enable Flathub for Discover App Store, ApexOS Welcome, and Shelly Flatpak support

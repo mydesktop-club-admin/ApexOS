@@ -1,0 +1,29 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "hello@mydesktop.club",
+        "Name": "ApexOS"
+      }
+    ],
+    "Category": "Plasma Style",
+    "Description": "Soft Horizon Mist frosted periwinkle-sky Plasma style for ApexOS Light.",
+    "EnabledByDefault": true,
+    "Id": "ApexOSLight",
+    "License": "GPLv3",
+    "Name": "ApexOS Light",
+    "Version": "1.0",
+    "Website": "https://mydesktop.club"
+  },
+  "X-Plasma-API": "5.0",
+  "ContrastEffect": {
+    "enabled": true,
+    "contrast": 0.22,
+    "intensity": 1.08,
+    "saturation": 1.60
+  },
+  "BlurBehindEffect": {
+    "enabled": true
+  },
+  "FallbackTheme": "default"
+}

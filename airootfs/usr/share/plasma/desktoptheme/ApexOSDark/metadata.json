@@ -1,0 +1,29 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "hello@mydesktop.club",
+        "Name": "ApexOS"
+      }
+    ],
+    "Category": "Plasma Style",
+    "Description": "Deep obsidian-navy frosted glass Plasma style for ApexOS Dark.",
+    "EnabledByDefault": true,
+    "Id": "ApexOSDark",
+    "License": "GPLv3",
+    "Name": "ApexOS Dark",
+    "Version": "1.0",
+    "Website": "https://mydesktop.club"
+  },
+  "X-Plasma-API": "5.0",
+  "ContrastEffect": {
+    "enabled": true,
+    "contrast": 0.28,
+    "intensity": 0.45,
+    "saturation": 1.65
+  },
+  "BlurBehindEffect": {
+    "enabled": true
+  },
+  "FallbackTheme": "default"
+}

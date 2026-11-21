@@ -334,7 +334,7 @@ class ApexWelcomeWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ApexOS Welcome & Control Center")
         self.setMinimumSize(940, 620)
-        icon_path = "/usr/share/pixmaps/apexos-launcher-white.svg"
+        icon_path = "/usr/share/pixmaps/apexos-welcome-icon.svg"
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
@@ -547,17 +547,17 @@ class ApexWelcomeWindow(QMainWindow):
         wl = QVBoxLayout(win_card)
         wl.setContentsMargins(20, 20, 20, 20)
         wl.setSpacing(10)
-        wt = QLabel("Windows 11 Classic")
+        wt = QLabel("ApexOS Classic Taskbar (Default)")
         wt.setObjectName("CardTitle")
         wd = QLabel(
-            "• Single floating taskbar along the bottom\n"
-            "• Centered Start Menu & pinned apps\n"
+            "• Docked, non-floating full-width bottom taskbar\n"
+            "• Application Launcher & Icon-Only Task Manager aligned left\n"
             "• System Tray, Clock & Show Desktop corner on the right\n"
-            "• Familiar Windows 11 muscle memory"
+            "• Familiar Windows muscle memory"
         )
         wd.setObjectName("Muted")
         wd.setWordWrap(True)
-        wbtn = QPushButton("Switch to Windows 11 Layout")
+        wbtn = QPushButton("Apply Left-Aligned Taskbar")
         wbtn.setObjectName("Primary")
         wbtn.clicked.connect(lambda: self._apply_layout("win11"))
         wl.addWidget(wt)
@@ -570,17 +570,16 @@ class ApexWelcomeWindow(QMainWindow):
         sl = QVBoxLayout(sig_card)
         sl.setContentsMargins(20, 20, 20, 20)
         sl.setSpacing(10)
-        st = QLabel("ApexOS Signature Glass")
+        st = QLabel("ApexOS Floating Dock")
         st.setObjectName("CardTitle")
         sd = QLabel(
             "• Sleek translucent glass top menu bar\n"
             "• Centered floating bottom app dock\n"
-            "• Layered ClearClock & custom icons\n"
-            "• Restores your exact ApexOS signature desktop"
+            "• Great if you prefer a macOS-inspired desktop"
         )
         sd.setObjectName("Muted")
         sd.setWordWrap(True)
-        sbtn = QPushButton("Switch to ApexOS Signature")
+        sbtn = QPushButton("Switch to Floating Dock")
         sbtn.clicked.connect(lambda: self._apply_layout("signature"))
         sl.addWidget(st)
         sl.addWidget(sd)
@@ -590,12 +589,58 @@ class ApexWelcomeWindow(QMainWindow):
         row.addWidget(win_card)
         row.addWidget(sig_card)
 
+        theme_lbl = QLabel("APEXOS GLOBAL THEMES")
+        theme_lbl.setObjectName("SectionLabel")
+
+        theme_row = QHBoxLayout()
+        theme_row.setSpacing(16)
+
+        dark_card = QFrame()
+        dark_card.setObjectName("Card")
+        dl = QVBoxLayout(dark_card)
+        dl.setContentsMargins(18, 14, 18, 14)
+        dl.setSpacing(6)
+        dt = QLabel("ApexOS Dark (Default)")
+        dt.setObjectName("CardTitle")
+        dd = QLabel(
+            "Deep obsidian-navy glass (#05070D) with electric azure (#0A84FF) accents & matching 4K wallpaper."
+        )
+        dd.setObjectName("Muted")
+        dd.setWordWrap(True)
+        dbtn = QPushButton("Apply ApexOS Dark")
+        dbtn.setObjectName("Primary")
+        dbtn.clicked.connect(lambda: self._apply_global_theme("org.apexos.dark"))
+        dl.addWidget(dt)
+        dl.addWidget(dd)
+        dl.addWidget(dbtn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        passive_card = QFrame()
+        passive_card.setObjectName("Card")
+        pl = QVBoxLayout(passive_card)
+        pl.setContentsMargins(18, 14, 18, 14)
+        pl.setSpacing(6)
+        pt = QLabel("ApexOS Light")
+        pt.setObjectName("CardTitle")
+        pd = QLabel(
+            "Eye-friendly Soft Horizon Mist (#B9C8DF / #D5E0F0) periwinkle-sky surfaces with deep indigo ink & cobalt accents."
+        )
+        pd.setObjectName("Muted")
+        pd.setWordWrap(True)
+        pbtn = QPushButton("Apply ApexOS Light")
+        pbtn.clicked.connect(lambda: self._apply_global_theme("org.apexos.light"))
+        pl.addWidget(pt)
+        pl.addWidget(pd)
+        pl.addWidget(pbtn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        theme_row.addWidget(dark_card)
+        theme_row.addWidget(passive_card)
+
         tip = QFrame()
         tip.setObjectName("Card")
         tl = QHBoxLayout(tip)
         tl.setContentsMargins(16, 12, 16, 12)
         tl_lbl = QLabel(
-            "Double-click to open files & Windows keyboard shortcuts (Win+E, Win+Shift+S, Ctrl+Shift+Esc) are enabled in both layouts."
+            "Double-click to open files & Windows keyboard shortcuts (Win+E, Win+Shift+S, Ctrl+Shift+Esc) are enabled in both themes."
         )
         tl_lbl.setObjectName("Muted")
         tl_lbl.setWordWrap(True)
@@ -607,9 +652,41 @@ class ApexWelcomeWindow(QMainWindow):
         lay.addWidget(title)
         lay.addWidget(sub)
         lay.addWidget(self.layout_status_lbl)
-        lay.addLayout(row, stretch=1)
+        lay.addLayout(row)
+        lay.addWidget(theme_lbl)
+        lay.addLayout(theme_row)
         lay.addWidget(tip)
         return page
+
+    def _apply_global_theme(self, theme_id: str) -> None:
+        self.layout_status_lbl.setText(f"APPLYING {theme_id.upper()}...")
+        QApplication.processEvents()
+        if shutil.which("plasma-apply-lookandfeel"):
+            subprocess.run(
+                ["plasma-apply-lookandfeel", "-a", theme_id],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        wp = (
+            "/usr/share/wallpapers/ApexOSLight/contents/images/3840x2160.jpg"
+            if theme_id == "org.apexos.light"
+            else "/usr/share/wallpapers/ApexOSDark/contents/images/3840x2160.jpg"
+        )
+        if shutil.which("plasma-apply-wallpaperimage") and os.path.exists(wp):
+            subprocess.run(
+                ["plasma-apply-wallpaperimage", wp],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        subprocess.run(
+            ["/usr/local/bin/apexos-layout-switcher", "default"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        self._refresh_layout_status()
 
     def _refresh_layout_status(self) -> None:
         try:

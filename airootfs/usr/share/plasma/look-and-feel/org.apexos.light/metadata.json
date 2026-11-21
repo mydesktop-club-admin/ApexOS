@@ -1,0 +1,19 @@
+{
+  "KPackageStructure": "Plasma/LookAndFeel",
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "hello@mydesktop.club",
+        "Name": "ApexOS"
+      }
+    ],
+    "Category": "Global Themes (Plasma 6)",
+    "Description": "Eye-friendly Soft Horizon Mist light theme (#B9C8DF / #D5E0F0) with deep-indigo ink, cobalt accents, and a docked left-aligned taskbar.",
+    "Id": "org.apexos.light",
+    "License": "GPLv3",
+    "Name": "ApexOS Light",
+    "Version": "1.0",
+    "Website": "https://mydesktop.club"
+  },
+  "X-Plasma-MainScript": "defaults"
+}

@@ -1,0 +1,19 @@
+{
+  "KPackageStructure": "Plasma/LookAndFeel",
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "hello@mydesktop.club",
+        "Name": "ApexOS"
+      }
+    ],
+    "Category": "Global Themes (Plasma 6)",
+    "Description": "Default ApexOS dark desktop theme with deep obsidian-navy glass (#05070D), electric azure (#0A84FF) accents, and a docked left-aligned taskbar.",
+    "Id": "org.apexos.dark",
+    "License": "GPLv3",
+    "Name": "ApexOS Dark",
+    "Version": "1.0",
+    "Website": "https://mydesktop.club"
+  },
+  "X-Plasma-MainScript": "defaults"
+}

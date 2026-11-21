@@ -2,8 +2,9 @@
 # ==============================================================================
 # ApexOS 1-Click Desktop Layout Switcher
 # Usage:
-#   apexos-layout-switcher win11       # Windows 11 Classic centered taskbar
-#   apexos-layout-switcher signature   # ApexOS Signature Glass Dock (popky2)
+#   apexos-layout-switcher win11       # Docked (non-floating) left-aligned taskbar (ApexOS Default)
+#   apexos-layout-switcher default     # Alias for win11 (non-floating left-aligned taskbar)
+#   apexos-layout-switcher signature   # Glass Top Bar + Centered Floating Bottom Dock
 #   apexos-layout-switcher status      # Prints current active layout ID
 # ==============================================================================
 set -euo pipefail
@@ -15,6 +16,18 @@ BACKUP_SIG="${CONF_DIR}/apexos-layout-signature.rc"
 STATE_FILE="${CONF_DIR}/apexos-layout.state"
 LAUNCHER_ICON="/usr/share/pixmaps/apexos-launcher-white.svg"
 [[ ! -f "${LAUNCHER_ICON}" ]] && LAUNCHER_ICON="start-here-kde"
+
+# Auto-detect exact installed .desktop filename for ProtonVPN (fallback to Arch default)
+PROTONVPN_DESKTOP="proton.vpn.app.gtk.desktop"
+for candidate in \
+  /usr/share/applications/proton.vpn.app.gtk.desktop \
+  /usr/share/applications/protonvpn-app.desktop \
+  /usr/share/applications/*proton*vpn*.desktop; do
+  if [[ -f "${candidate}" ]]; then
+    PROTONVPN_DESKTOP="$(basename "${candidate}")"
+    break
+  fi
+done
 
 mkdir -p "${CONF_DIR}"
 
@@ -35,17 +48,16 @@ case "${MODE}" in
     if [[ -f "${STATE_FILE}" ]]; then
       cat "${STATE_FILE}"
     else
-      echo "signature"
+      echo "win11"
     fi
     ;;
 
-  win11)
-    # Preserve the user's original Signature (popky2) layout once before switching
+  win11|default)
     if [[ ! -f "${BACKUP_SIG}" && -f "${APPLETS_RC}" ]]; then
       cp -f "${APPLETS_RC}" "${BACKUP_SIG}"
     fi
 
-    WIN11_JS="
+    TASKBAR_JS="
 var allPanels = panels();
 for (var i = 0; i < allPanels.length; i++) {
   allPanels[i].remove();
@@ -53,31 +65,49 @@ for (var i = 0; i < allPanels.length; i++) {
 
 var panel = new Panel();
 panel.location = 'bottom';
-panel.height = 46;
-panel.floating = true;
+panel.height = 44;
+panel.floating = false;
+panel.alignment = 'left';
 panel.hiding = 'none';
 
-// Left expanding spacer centers the Start Menu + pinned apps (Windows 11 style)
-panel.addWidget('org.kde.plasma.panelspacer');
-
+// Application Launcher + Icon-Only Task Manager aligned cleanly to the LEFT
 var kickoff = panel.addWidget('org.kde.plasma.kickoff');
 kickoff.currentConfigGroup = ['General'];
 kickoff.writeConfig('icon', '${LAUNCHER_ICON}');
-kickoff.writeConfig('favoritesPortedToKAstats', 'true');
+kickoff.writeConfig('favorites', [
+  'org.kde.dolphin.desktop',
+  'brave-browser.desktop',
+  'steam.desktop',
+  'gimp.desktop',
+  'org.kde.krita.desktop',
+  'vlc.desktop',
+  'org.kde.discover.desktop',
+  'systemsettings.desktop',
+  'org.kde.konsole.desktop',
+  'apexos-welcome.desktop',
+  '${PROTONVPN_DESKTOP}',
+  'mydesktop-club.desktop',
+  'apexos-updater.desktop',
+  'system-config-printer.desktop'
+]);
+kickoff.writeConfig('favoritesPortedToKAstats', false);
 
 var tasks = panel.addWidget('org.kde.plasma.icontasks');
 tasks.currentConfigGroup = ['General'];
 tasks.writeConfig('launchers', [
   'applications:org.kde.dolphin.desktop',
   'applications:brave-browser.desktop',
-  'applications:org.kde.discover.desktop',
   'applications:steam.desktop',
-  'applications:apexos-welcome.desktop'
+  'applications:gimp.desktop',
+  'applications:org.kde.krita.desktop',
+  'applications:vlc.desktop',
+  'applications:org.kde.discover.desktop',
+  'applications:systemsettings.desktop'
 ]);
 tasks.writeConfig('groupingStrategy', '1');
 tasks.writeConfig('indicateAudioStreams', 'true');
 
-// Right expanding spacer pushes system tray, clock & Show Desktop to the right corner
+// Expanding spacer pushes System Tray, Clock & Show Desktop to the right edge
 panel.addWidget('org.kde.plasma.panelspacer');
 
 panel.addWidget('org.kde.plasma.systemtray');
@@ -89,18 +119,15 @@ clock.writeConfig('dateFormat', 'shortDate');
 
 panel.addWidget('org.kde.plasma.showdesktop');
 "
-    run_plasma_js "${WIN11_JS}"
+    run_plasma_js "${TASKBAR_JS}"
     echo "win11" > "${STATE_FILE}"
-    echo "Applied Windows 11 Classic layout."
+    echo "Applied docked left-aligned ApexOS taskbar."
     ;;
 
   signature)
-    # Prefer the backed-up Signature layout, falling back to /etc/skel if available
     RESTORE_SRC=""
     if [[ -f "${BACKUP_SIG}" ]]; then
       RESTORE_SRC="${BACKUP_SIG}"
-    elif [[ -f /etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc ]]; then
-      RESTORE_SRC="/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc"
     fi
 
     if [[ -n "${RESTORE_SRC}" ]]; then
@@ -113,14 +140,12 @@ panel.addWidget('org.kde.plasma.showdesktop');
       sleep 1
       setsid plasmashell --replace >/dev/null 2>&1 &
     else
-      # Fallback clean Signature layout (translucent top bar + centered bottom dock)
       SIG_JS="
 var allPanels = panels();
 for (var i = 0; i < allPanels.length; i++) {
   allPanels[i].remove();
 }
 
-// Top Menu Bar
 var topBar = new Panel();
 topBar.location = 'top';
 topBar.height = 30;
@@ -129,13 +154,29 @@ topBar.floating = false;
 var kickoff = topBar.addWidget('org.kde.plasma.kickoff');
 kickoff.currentConfigGroup = ['General'];
 kickoff.writeConfig('icon', '${LAUNCHER_ICON}');
+kickoff.writeConfig('favorites', [
+  'org.kde.dolphin.desktop',
+  'brave-browser.desktop',
+  'steam.desktop',
+  'gimp.desktop',
+  'org.kde.krita.desktop',
+  'vlc.desktop',
+  'org.kde.discover.desktop',
+  'systemsettings.desktop',
+  'org.kde.konsole.desktop',
+  'apexos-welcome.desktop',
+  '${PROTONVPN_DESKTOP}',
+  'mydesktop-club.desktop',
+  'apexos-updater.desktop',
+  'system-config-printer.desktop'
+]);
+kickoff.writeConfig('favoritesPortedToKAstats', false);
 
 topBar.addWidget('org.kde.plasma.appmenu');
 topBar.addWidget('org.kde.plasma.panelspacer');
 topBar.addWidget('org.kde.plasma.systemtray');
 topBar.addWidget('org.kde.plasma.digitalclock');
 
-// Centered Floating Bottom Dock
 var dock = new Panel();
 dock.location = 'bottom';
 dock.height = 54;
@@ -148,9 +189,12 @@ tasks.currentConfigGroup = ['General'];
 tasks.writeConfig('launchers', [
   'applications:org.kde.dolphin.desktop',
   'applications:brave-browser.desktop',
-  'applications:org.kde.discover.desktop',
   'applications:steam.desktop',
-  'applications:apexos-welcome.desktop'
+  'applications:gimp.desktop',
+  'applications:org.kde.krita.desktop',
+  'applications:vlc.desktop',
+  'applications:org.kde.discover.desktop',
+  'applications:systemsettings.desktop'
 ]);
 dock.addWidget('org.kde.plasma.trash');
 "
@@ -161,7 +205,7 @@ dock.addWidget('org.kde.plasma.trash');
     ;;
 
   *)
-    echo "Usage: apexos-layout-switcher [win11|signature|status]" >&2
+    echo "Usage: apexos-layout-switcher [win11|default|signature|status]" >&2
     exit 1
     ;;
 esac
