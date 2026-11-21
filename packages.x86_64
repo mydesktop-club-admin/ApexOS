@@ -148,6 +148,7 @@ lib32-gst-plugins-base-libs
 # --- Requested Preinstalled Applications ---
 shelly
 vlc
+gimp
 krita
 proton-vpn-gtk-app
 libreoffice-fresh
