@@ -24,4 +24,8 @@ file_permissions=(
   ["/usr/local/bin/mydesktop-club-app"]="0:0:755"
   ["/usr/local/bin/apexos-game-launch"]="0:0:755"
   ["/usr/local/bin/apexos-firstboot"]="0:0:755"
+  ["/usr/local/bin/apexos-welcome"]="0:0:755"
+  ["/usr/local/bin/apexos-updater"]="0:0:755"
+  ["/usr/local/bin/apexos-do-update"]="0:0:755"
+  ["/usr/local/bin/apexos-layout-switcher"]="0:0:755"
 )

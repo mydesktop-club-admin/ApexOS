@@ -31,6 +31,9 @@ systemctl enable power-profiles-daemon.service || true
 systemctl enable ananicy-cpp.service || true
 systemctl enable irqbalance.service || true
 systemctl enable fstrim.timer || true
+systemctl enable cups.service || true
+systemctl enable cronie.service || true
+systemctl enable ufw.service || true
 
 # Enable sched-ext loader if present
 systemctl enable scx_loader.service || true

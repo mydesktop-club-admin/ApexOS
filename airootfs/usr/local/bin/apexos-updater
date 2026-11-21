@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+"""
+ApexOS Update Center — Zero-Terminal System & App Updater
+Runs safe system updates (pacman + keyrings + Flatpak) via pkexec with a clean UI.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+
+from PyQt6.QtCore import QProcess, Qt
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+STYLE = """
+QMainWindow, QWidget {
+    background-color: #0b0e14;
+    color: #f1f5f9;
+    font-family: "Noto Sans", "DejaVu Sans", sans-serif;
+    font-size: 13px;
+}
+QFrame#Card {
+    background-color: #131823;
+    border: 1px solid #242d3f;
+    border-radius: 14px;
+}
+QLabel#Title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+}
+QLabel#Subtitle {
+    font-size: 13px;
+    color: #94a3b8;
+}
+QLabel#StatusHeading {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f8fafc;
+}
+QPushButton {
+    background-color: #1e2636;
+    color: #f1f5f9;
+    border: 1px solid #2f3b52;
+    border-radius: 9px;
+    padding: 10px 18px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #273248;
+    border-color: #475569;
+}
+QPushButton:disabled {
+    background-color: #151b26;
+    color: #64748b;
+    border-color: #1e2636;
+}
+QPushButton#Primary {
+    background-color: #3b82f6;
+    border: 1px solid #60a5fa;
+    color: #ffffff;
+}
+QPushButton#Primary:hover {
+    background-color: #2563eb;
+}
+QPushButton#Reboot {
+    background-color: #10b981;
+    border: 1px solid #34d399;
+    color: #052e16;
+}
+QPushButton#Reboot:hover {
+    background-color: #059669;
+    color: #ffffff;
+}
+QProgressBar {
+    background-color: #1a2130;
+    border: 1px solid #2a3448;
+    border-radius: 7px;
+    height: 12px;
+    text-align: center;
+}
+QProgressBar::chunk {
+    background-color: #3b82f6;
+    border-radius: 6px;
+}
+QPlainTextEdit {
+    background-color: #080b10;
+    color: #cbd5e1;
+    border: 1px solid #1e2636;
+    border-radius: 10px;
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    font-size: 11px;
+    padding: 8px;
+}
+"""
+
+
+class ApexUpdaterWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("ApexOS Update Center")
+        self.setMinimumSize(620, 420)
+        icon_path = "/usr/share/pixmaps/apexos-launcher-white.svg"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        self.proc = QProcess(self)
+        self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        self.proc.readyReadStandardOutput.connect(self._on_output)
+        self.proc.finished.connect(self._on_finished)
+
+        self.current_mode = ""
+        self.pending_system_count = 0
+        self.reboot_required = False
+
+        self._build_ui()
+        self.setStyleSheet(STYLE)
+
+    def _build_ui(self) -> None:
+        root = QWidget()
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        header = QVBoxLayout()
+        header.setSpacing(4)
+        title = QLabel("ApexOS Update Center")
+        title.setObjectName("Title")
+        subtitle = QLabel(
+            "Safely updates your operating system, graphics drivers, and Flatpak apps in one click."
+        )
+        subtitle.setObjectName("Subtitle")
+        subtitle.setWordWrap(True)
+        header.addWidget(title)
+        header.addWidget(subtitle)
+        layout.addLayout(header)
+
+        card = QFrame()
+        card.setObjectName("Card")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(12)
+
+        self.status_heading = QLabel("Ready to check for updates")
+        self.status_heading.setObjectName("StatusHeading")
+        self.status_detail = QLabel(
+            "Click 'Update Everything' to refresh security keys, system packages, and installed apps."
+        )
+        self.status_detail.setObjectName("Subtitle")
+        self.status_detail.setWordWrap(True)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.setTextVisible(False)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+
+        self.check_btn = QPushButton("Check for Updates")
+        self.check_btn.clicked.connect(self.check_updates)
+
+        self.update_btn = QPushButton("Update Everything")
+        self.update_btn.setObjectName("Primary")
+        self.update_btn.clicked.connect(self.run_full_update)
+
+        self.discover_btn = QPushButton("Open App Store")
+        self.discover_btn.clicked.connect(self.open_discover)
+
+        self.reboot_btn = QPushButton("Restart PC Now")
+        self.reboot_btn.setObjectName("Reboot")
+        self.reboot_btn.setVisible(False)
+        self.reboot_btn.clicked.connect(self.reboot_system)
+
+        btn_row.addWidget(self.check_btn)
+        btn_row.addWidget(self.update_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(self.discover_btn)
+        btn_row.addWidget(self.reboot_btn)
+
+        card_layout.addWidget(self.status_heading)
+        card_layout.addWidget(self.status_detail)
+        card_layout.addWidget(self.progress)
+        card_layout.addLayout(btn_row)
+        layout.addWidget(card)
+
+        self.toggle_log_btn = QPushButton("Show Technical Details")
+        self.toggle_log_btn.setCheckable(True)
+        self.toggle_log_btn.clicked.connect(self._toggle_log)
+        layout.addWidget(self.toggle_log_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.log_box = QPlainTextEdit()
+        self.log_box.setReadOnly(True)
+        self.log_box.setVisible(False)
+        layout.addWidget(self.log_box, stretch=1)
+
+        self.setCentralWidget(root)
+
+    def _toggle_log(self, checked: bool) -> None:
+        self.log_box.setVisible(checked)
+        self.toggle_log_btn.setText(
+            "Hide Technical Details" if checked else "Show Technical Details"
+        )
+
+    def _set_busy(self, busy: bool) -> None:
+        self.check_btn.setEnabled(not busy)
+        self.update_btn.setEnabled(not busy)
+        if busy:
+            self.progress.setRange(0, 0)
+        else:
+            self.progress.setRange(0, 100)
+
+    def check_updates(self) -> None:
+        self.current_mode = "check"
+        self.pending_system_count = 0
+        self.reboot_btn.setVisible(False)
+        self.log_box.clear()
+        self.status_heading.setText("Checking for updates...")
+        self.status_detail.setText("Enter your password if prompted to refresh the package catalog.")
+        self._set_busy(True)
+        self.proc.start("pkexec", ["/usr/local/bin/apexos-do-update", "check"])
+
+    def run_full_update(self) -> None:
+        self.current_mode = "update"
+        self.reboot_required = False
+        self.reboot_btn.setVisible(False)
+        self.log_box.clear()
+        self.status_heading.setText("Installing ApexOS updates...")
+        self.status_detail.setText("Please wait — do not turn off your PC while updates finish.")
+        self._set_busy(True)
+        self.proc.start("pkexec", ["/usr/local/bin/apexos-do-update", "update"])
+
+    def _on_output(self) -> None:
+        raw = bytes(self.proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+        if not raw:
+            return
+        self.log_box.appendPlainText(raw.rstrip())
+        for line in raw.splitlines():
+            line = line.strip()
+            if line.startswith("[STEP]"):
+                self.status_detail.setText(line.replace("[STEP]", "").strip())
+            elif line.startswith("[RESULT] SYSTEM_UPDATES="):
+                try:
+                    self.pending_system_count = int(line.split("=", 1)[1].strip())
+                except ValueError:
+                    pass
+            elif line == "[REBOOT_REQUIRED] true":
+                self.reboot_required = True
+
+    def _on_finished(self, exit_code: int, _exit_status: QProcess.ExitStatus) -> None:
+        self._set_busy(False)
+        if exit_code == 126 or exit_code == 127:
+            self.progress.setValue(0)
+            self.status_heading.setText("Authentication cancelled")
+            self.status_detail.setText("Password entry was cancelled. No changes were made.")
+            return
+
+        if exit_code != 0:
+            self.progress.setValue(0)
+            self.status_heading.setText("Update paused — something needs attention")
+            self.status_detail.setText(
+                "Click 'Show Technical Details' below to inspect the message, or try again once connected to the internet."
+            )
+            return
+
+        self.progress.setValue(100)
+        if self.current_mode == "check":
+            if self.pending_system_count > 0:
+                self.status_heading.setText(
+                    f"{self.pending_system_count} system update(s) ready"
+                )
+                self.status_detail.setText(
+                    "Click 'Update Everything' to install system & Flatpak updates safely."
+                )
+            else:
+                self.status_heading.setText("Your system is up to date")
+                self.status_detail.setText(
+                    "No pending system updates were found. You can still run 'Update Everything' to check Flatpak apps."
+                )
+        elif self.current_mode == "update":
+            # Also update user-scoped Flatpaks cleanly without root
+            if shutil.which("flatpak"):
+                subprocess.Popen(
+                    ["flatpak", "update", "--user", "-y", "--noninteractive"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            if self.reboot_required:
+                self.status_heading.setText("Updates installed — Restart recommended")
+                self.status_detail.setText(
+                    "A new gaming kernel or graphics update was installed. Restart your PC to activate it."
+                )
+                self.reboot_btn.setVisible(True)
+            else:
+                self.status_heading.setText("ApexOS is completely up to date!")
+                self.status_detail.setText("All system packages and apps have been updated.")
+
+    def open_discover(self) -> None:
+        if shutil.which("plasma-discover"):
+            subprocess.Popen(["plasma-discover"], start_new_session=True)
+
+    def reboot_system(self) -> None:
+        subprocess.Popen(["systemctl", "reboot"])
+
+
+def main() -> int:
+    app = QApplication(sys.argv)
+    app.setApplicationName("ApexOS Update Center")
+    win = ApexUpdaterWindow()
+    win.show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

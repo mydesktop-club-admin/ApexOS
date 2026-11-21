@@ -102,6 +102,14 @@ appmenu-gtk-module
 libdbusmenu-gtk3
 qt6-5compat
 flatpak
+discover
+flatpak-kcm
+fwupd
+polkit-kde-agent
+kio-admin
+udisks2
+python
+python-pyqt6
 
 # --- Performance & Gaming Engine ---
 scx-scheds
@@ -146,6 +154,16 @@ libreoffice-fresh
 # Built & bundled from AUR into [apexos-local] by build-iso.sh:
 brave-bin
 
+# --- Zero-Terminal System Safety, Printers & Firewall ---
+timeshift
+cronie
+cups
+cups-pdf
+print-manager
+system-config-printer
+ufw
+gufw
+
 # --- Graphical Installer (Calamares), CLI Tools & Fonts ---
 cachyos-calamares
 grub
@@ -161,6 +179,9 @@ p7zip
 unrar
 ttf-dejavu
 ttf-liberation
+ttf-carlito
+ttf-caladea
+ttf-croscore
 noto-fonts
 noto-fonts-emoji
 noto-fonts-cjk

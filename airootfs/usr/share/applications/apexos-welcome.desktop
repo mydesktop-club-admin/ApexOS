@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ApexOS Welcome
+GenericName=Control Center & App Installer
+Comment=Switch desktop layouts, install popular apps in 1 click, and manage ApexOS without the terminal
+Exec=/usr/local/bin/apexos-welcome
+Icon=/usr/share/pixmaps/apexos-launcher-white.svg
+Terminal=false
+Categories=System;Settings;Utility;
+Keywords=welcome;windows;layout;apps;store;settings;apexos;
+StartupNotify=true

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ApexOS Safe System Update Helper (invoked via pkexec by ApexOS Update Center)
+# Syncs databases, updates keyrings first to prevent GPG errors, updates OS,
+# and updates system Flatpak apps without requiring the user to touch a terminal.
+# ==============================================================================
+set -euo pipefail
+
+MODE="${1:-update}"
+
+case "${MODE}" in
+  check)
+    echo "[STEP] Refreshing package catalog..."
+    pacman -Sy --noconfirm >/dev/null 2>&1 || true
+    UPDATES="$(pacman -Qu 2>/dev/null || true)"
+    if [[ -n "${UPDATES}" ]]; then
+      COUNT="$(printf '%s\n' "${UPDATES}" | wc -l)"
+      echo "[RESULT] SYSTEM_UPDATES=${COUNT}"
+      printf '%s\n' "${UPDATES}"
+    else
+      echo "[RESULT] SYSTEM_UPDATES=0"
+    fi
+    ;;
+
+  update)
+    echo "[STEP] 1/4 Syncing package databases..."
+    pacman -Sy --noconfirm
+
+    echo "[STEP] 2/4 Refreshing security keyrings..."
+    KEYRINGS=()
+    pacman -Qq archlinux-keyring >/dev/null 2>&1 && KEYRINGS+=("archlinux-keyring")
+    pacman -Qq cachyos-keyring >/dev/null 2>&1 && KEYRINGS+=("cachyos-keyring")
+    if (( ${#KEYRINGS[@]} > 0 )); then
+      pacman -S --needed --noconfirm "${KEYRINGS[@]}" || true
+    fi
+
+    echo "[STEP] 3/4 Installing ApexOS system updates..."
+    KERNEL_BEFORE="$(pacman -Q linux-cachyos 2>/dev/null || true)"
+    pacman -Su --noconfirm
+    KERNEL_AFTER="$(pacman -Q linux-cachyos 2>/dev/null || true)"
+
+    echo "[STEP] 4/4 Updating Flatpak applications..."
+    if command -v flatpak >/dev/null 2>&1; then
+      flatpak update --system -y --noninteractive || true
+    fi
+
+    if [[ "${KERNEL_BEFORE}" != "${KERNEL_AFTER}" ]]; then
+      echo "[REBOOT_REQUIRED] true"
+    else
+      echo "[REBOOT_REQUIRED] false"
+    fi
+    echo "[DONE] ApexOS is completely up to date!"
+    ;;
+
+  *)
+    echo "Usage: apexos-do-update [check|update]" >&2
+    exit 1
+    ;;
+esac

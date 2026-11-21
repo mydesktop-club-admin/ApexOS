@@ -1,0 +1,928 @@
+#!/usr/bin/env python3
+"""
+ApexOS Welcome & Control Center
+Zero-terminal onboarding hub for Windows switchers and gamers:
+  - Home & Hardware Summary
+  - 1-Click Desktop Layout Switcher (Windows 11 Classic vs. ApexOS Glass Dock)
+  - 1-Click Popular Apps Installer & Uninstaller (Flathub)
+  - System Safety & Hardware Tools (Updates, Timeshift Restore, Printers, Firewall, NVIDIA)
+  - Windows 11 Keyboard Shortcuts Cheat Sheet
+"""
+
+import os
+import platform
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from PyQt6.QtCore import QProcess, Qt
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "apexos-welcome.desktop"
+
+POPULAR_APPS = [
+    # (Category, Display Name, Short Description, Flatpak App ID)
+    (
+        "Windows Compatibility & Office",
+        "Bottles",
+        "Run Windows .exe and .msi apps with a clean graphical wizard.",
+        "com.usebottles.bottles",
+    ),
+    (
+        "Windows Compatibility & Office",
+        "Gear Lever",
+        "Double-click any .AppImage to add it to your Start Menu & uninstall easily.",
+        "it.mijorus.gearlever",
+    ),
+    (
+        "Windows Compatibility & Office",
+        "OnlyOffice Desktop",
+        "Microsoft Office lookalike with high .docx / .xlsx / .pptx fidelity.",
+        "org.onlyoffice.desktopeditors",
+    ),
+    (
+        "Gaming",
+        "Heroic Games Launcher",
+        "Play Epic Games, GOG, and Amazon Prime Gaming titles in 1 click.",
+        "com.heroicgameslauncher.hgl",
+    ),
+    (
+        "Gaming",
+        "Discord",
+        "Voice, video, and community chat for gaming.",
+        "com.discordapp.Discord",
+    ),
+    (
+        "Gaming",
+        "OBS Studio",
+        "Screen recording and live streaming with NVIDIA NVENC support.",
+        "com.obsproject.Studio",
+    ),
+    (
+        "Gaming",
+        "Prism Launcher",
+        "Fast, mod-friendly launcher for Minecraft.",
+        "org.prismlauncher.PrismLauncher",
+    ),
+    (
+        "Everyday & Creative",
+        "Spotify",
+        "Music and podcast streaming desktop app.",
+        "com.spotify.Client",
+    ),
+    (
+        "Everyday & Creative",
+        "Google Chrome",
+        "Google Chrome web browser (alongside preinstalled Brave).",
+        "com.google.Chrome",
+    ),
+    (
+        "Everyday & Creative",
+        "Visual Studio Code",
+        "Popular code editor by Microsoft.",
+        "com.visualstudio.code",
+    ),
+    (
+        "Everyday & Creative",
+        "GIMP",
+        "Full-featured open-source image editor.",
+        "org.gimp.GIMP",
+    ),
+    (
+        "Everyday & Creative",
+        "Blender",
+        "3D modeling, animation, and rendering suite.",
+        "org.blender.Blender",
+    ),
+]
+
+SHORTCUTS = [
+    ("Win (Super)", "Open Start Menu / Search Apps & Files"),
+    ("Win + E", "Open File Explorer (Dolphin)"),
+    ("Ctrl + Shift + Esc", "Open Task Manager (System Monitor)"),
+    ("Win + Shift + S", "Snipping Tool (Capture Screen Region)"),
+    ("Win + V", "Open Clipboard History"),
+    ("Win + D", "Show Desktop (Minimize / Restore All Windows)"),
+    ("Win + L", "Lock Screen"),
+    ("Win + Left / Right", "Snap Window to Left or Right Half"),
+    ("Win + Up / Down", "Maximize / Restore Window"),
+    ("Alt + Tab", "Switch Between Open Windows"),
+    ("Win + Tab", "Overview & Virtual Desktops"),
+]
+
+STYLE = """
+QMainWindow, QWidget {
+    background-color: #0b0e14;
+    color: #f1f5f9;
+    font-family: "Noto Sans", "DejaVu Sans", sans-serif;
+    font-size: 13px;
+}
+QFrame#Sidebar {
+    background-color: #0f141e;
+    border-right: 1px solid #1e2636;
+}
+QListWidget#NavList {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    padding: 6px;
+}
+QListWidget#NavList::item {
+    color: #94a3b8;
+    padding: 12px 14px;
+    margin: 2px 0px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+QListWidget#NavList::item:hover {
+    background-color: #182030;
+    color: #f8fafc;
+}
+QListWidget#NavList::item:selected {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+QFrame#Card {
+    background-color: #131823;
+    border: 1px solid #232d40;
+    border-radius: 14px;
+}
+QFrame#CardHighlight {
+    background-color: #131b2c;
+    border: 1px solid #3b82f6;
+    border-radius: 14px;
+}
+QLabel#BrandTitle {
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff;
+}
+QLabel#PageTitle {
+    font-size: 23px;
+    font-weight: 700;
+    color: #ffffff;
+}
+QLabel#CardTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f8fafc;
+}
+QLabel#SectionLabel {
+    font-size: 12px;
+    font-weight: 700;
+    color: #60a5fa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+QLabel#Muted {
+    color: #94a3b8;
+    font-size: 12px;
+}
+QPushButton {
+    background-color: #1d2638;
+    color: #f8fafc;
+    border: 1px solid #2f3c56;
+    border-radius: 9px;
+    padding: 9px 15px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #28354d;
+    border-color: #475569;
+}
+QPushButton:disabled {
+    background-color: #141a26;
+    color: #64748b;
+}
+QPushButton#Primary {
+    background-color: #3b82f6;
+    border: 1px solid #60a5fa;
+    color: #ffffff;
+}
+QPushButton#Primary:hover {
+    background-color: #2563eb;
+}
+QPushButton#Danger {
+    background-color: #2a1820;
+    border: 1px solid #7f1d1d;
+    color: #fca5a5;
+}
+QPushButton#Danger:hover {
+    background-color: #7f1d1d;
+    color: #ffffff;
+}
+QProgressBar {
+    background-color: #1a2130;
+    border: 1px solid #2a3448;
+    border-radius: 6px;
+    height: 10px;
+}
+QProgressBar::chunk {
+    background-color: #3b82f6;
+    border-radius: 5px;
+}
+QTableWidget {
+    background-color: #131823;
+    border: 1px solid #232d40;
+    border-radius: 12px;
+    gridline-color: #1e2636;
+}
+QHeaderView::section {
+    background-color: #171f2e;
+    color: #cbd5e1;
+    padding: 8px 12px;
+    border: none;
+    font-weight: 700;
+}
+QScrollArea {
+    border: none;
+    background-color: transparent;
+}
+"""
+
+
+def get_hardware_summary() -> str:
+    cpu = "Unknown CPU"
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("model name"):
+                    cpu = line.split(":", 1)[1].strip()
+                    break
+    except OSError:
+        pass
+
+    mem_gb = "?"
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    kb = int(line.split()[1])
+                    mem_gb = f"{round(kb / (1024 * 1024))} GB RAM"
+                    break
+    except (OSError, ValueError):
+        pass
+
+    gpu = ""
+    if shutil.which("nvidia-smi"):
+        try:
+            out = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                text=True,
+                timeout=2,
+            ).strip()
+            if out:
+                gpu = out.splitlines()[0]
+        except Exception:
+            pass
+
+    kernel = platform.release()
+    parts = [cpu, mem_gb]
+    if gpu:
+        parts.append(gpu)
+    parts.append(f"Kernel {kernel}")
+    return "  •  ".join(parts)
+
+
+def get_installed_flatpaks() -> set[str]:
+    if not shutil.which("flatpak"):
+        return set()
+    try:
+        out = subprocess.check_output(
+            ["flatpak", "list", "--app", "--columns=application"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        return {line.strip() for line in out.splitlines() if line.strip()}
+    except Exception:
+        return set()
+
+
+def launch_detached(cmd: list[str]) -> None:
+    if cmd and shutil.which(cmd[0]):
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+
+class ApexWelcomeWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("ApexOS Welcome & Control Center")
+        self.setMinimumSize(940, 620)
+        icon_path = "/usr/share/pixmaps/apexos-launcher-white.svg"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        self.app_buttons: dict[str, QPushButton] = {}
+        self.flatpak_proc = QProcess(self)
+        self.flatpak_proc.setProcessChannelMode(
+            QProcess.ProcessChannelMode.MergedChannels
+        )
+        self.flatpak_proc.finished.connect(self._on_flatpak_finished)
+        self.active_app_id = ""
+        self.active_app_action = ""
+
+        self._build_ui()
+        self.setStyleSheet(STYLE)
+        self._refresh_layout_status()
+        self._refresh_flatpak_buttons()
+
+    def _build_ui(self) -> None:
+        root = QWidget()
+        outer = QHBoxLayout(root)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Sidebar
+        sidebar = QFrame()
+        sidebar.setObjectName("Sidebar")
+        sidebar.setFixedWidth(230)
+        sb_layout = QVBoxLayout(sidebar)
+        sb_layout.setContentsMargins(16, 20, 16, 16)
+        sb_layout.setSpacing(12)
+
+        brand = QLabel("ApexOS")
+        brand.setObjectName("BrandTitle")
+        tagline = QLabel("Fast. Familiar. Zero Terminal.")
+        tagline.setObjectName("Muted")
+        sb_layout.addWidget(brand)
+        sb_layout.addWidget(tagline)
+
+        self.nav = QListWidget()
+        self.nav.setObjectName("NavList")
+        for label in [
+            "Home & Quick Start",
+            "Desktop Layout",
+            "Popular Apps",
+            "System & Safety",
+            "Windows Shortcuts",
+        ]:
+            self.nav.addItem(QListWidgetItem(label))
+        self.nav.setCurrentRow(0)
+        self.nav.currentRowChanged.connect(self._on_nav_changed)
+        sb_layout.addWidget(self.nav, stretch=1)
+
+        self.startup_chk = QCheckBox("Show on startup")
+        self.startup_chk.setChecked(AUTOSTART_FILE.exists())
+        self.startup_chk.toggled.connect(self._toggle_autostart)
+        sb_layout.addWidget(self.startup_chk)
+
+        outer.addWidget(sidebar)
+
+        # Main stacked pages
+        self.pages = QStackedWidget()
+        self.pages.addWidget(self._build_home_page())
+        self.pages.addWidget(self._build_layout_page())
+        self.pages.addWidget(self._build_apps_page())
+        self.pages.addWidget(self._build_system_page())
+        self.pages.addWidget(self._build_shortcuts_page())
+
+        outer.addWidget(self.pages, stretch=1)
+        self.setCentralWidget(root)
+
+    def _on_nav_changed(self, idx: int) -> None:
+        self.pages.setCurrentIndex(idx)
+        if idx == 1:
+            self._refresh_layout_status()
+        elif idx == 2:
+            self._refresh_flatpak_buttons()
+
+    def _toggle_autostart(self, enabled: bool) -> None:
+        if enabled:
+            AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
+            src = Path("/usr/share/applications/apexos-welcome.desktop")
+            if src.exists():
+                shutil.copyfile(src, AUTOSTART_FILE)
+        else:
+            if AUTOSTART_FILE.exists():
+                AUTOSTART_FILE.unlink()
+
+    def _make_card(
+        self, title: str, desc: str, btn_text: str, callback, primary: bool = False
+    ) -> QFrame:
+        card = QFrame()
+        card.setObjectName("Card")
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(18, 16, 18, 16)
+        lay.setSpacing(8)
+        t = QLabel(title)
+        t.setObjectName("CardTitle")
+        d = QLabel(desc)
+        d.setObjectName("Muted")
+        d.setWordWrap(True)
+        btn = QPushButton(btn_text)
+        if primary:
+            btn.setObjectName("Primary")
+        btn.clicked.connect(callback)
+        lay.addWidget(t)
+        lay.addWidget(d)
+        lay.addStretch()
+        lay.addWidget(btn, alignment=Qt.AlignmentFlag.AlignLeft)
+        return card
+
+    # --- Page 0: Home ---
+    def _build_home_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(28, 26, 28, 26)
+        lay.setSpacing(18)
+
+        title = QLabel("Welcome to ApexOS")
+        title.setObjectName("PageTitle")
+        sub = QLabel(
+            "Everything you need to install software, customize your desktop, update your PC, and play games — no terminal required."
+        )
+        sub.setObjectName("Muted")
+        sub.setWordWrap(True)
+
+        hw_card = QFrame()
+        hw_card.setObjectName("CardHighlight")
+        hw_lay = QVBoxLayout(hw_card)
+        hw_lay.setContentsMargins(16, 12, 16, 12)
+        hw_lbl = QLabel("THIS PC")
+        hw_lbl.setObjectName("SectionLabel")
+        hw_val = QLabel(get_hardware_summary())
+        hw_val.setWordWrap(True)
+        hw_lay.addWidget(hw_lbl)
+        hw_lay.addWidget(hw_val)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
+        grid.addWidget(
+            self._make_card(
+                "App Store (Discover)",
+                "Browse, install, and uninstall thousands of apps & firmware updates with screenshots and 1-click buttons.",
+                "Open App Store",
+                lambda: launch_detached(["plasma-discover"]),
+                primary=True,
+            ),
+            0,
+            0,
+        )
+        grid.addWidget(
+            self._make_card(
+                "1-Click Popular Apps",
+                "Install Discord, Spotify, Chrome, Heroic Games, OnlyOffice, OBS, and Bottles (for Windows .exe apps).",
+                "Pick Popular Apps",
+                lambda: self.nav.setCurrentRow(2),
+            ),
+            0,
+            1,
+        )
+        grid.addWidget(
+            self._make_card(
+                "Desktop Layout",
+                "Switch anytime between a familiar Windows 11 centered taskbar and the ApexOS Signature Glass Dock.",
+                "Choose Layout",
+                lambda: self.nav.setCurrentRow(1),
+            ),
+            1,
+            0,
+        )
+        grid.addWidget(
+            self._make_card(
+                "ApexOS Update Center",
+                "Keep your OS, NVIDIA drivers, and installed apps up to date safely with one click.",
+                "Check for Updates",
+                lambda: launch_detached(["/usr/local/bin/apexos-updater"]),
+            ),
+            1,
+            1,
+        )
+
+        lay.addWidget(title)
+        lay.addWidget(sub)
+        lay.addWidget(hw_card)
+        lay.addLayout(grid, stretch=1)
+        return page
+
+    # --- Page 1: Desktop Layout Switcher ---
+    def _build_layout_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(28, 26, 28, 26)
+        lay.setSpacing(16)
+
+        title = QLabel("Desktop Layout & Feel")
+        title.setObjectName("PageTitle")
+        sub = QLabel(
+            "Choose the desktop layout that feels most natural to you. You can switch back and forth anytime without losing your apps or files."
+        )
+        sub.setObjectName("Muted")
+        sub.setWordWrap(True)
+
+        self.layout_status_lbl = QLabel("")
+        self.layout_status_lbl.setObjectName("SectionLabel")
+
+        row = QHBoxLayout()
+        row.setSpacing(16)
+
+        win_card = QFrame()
+        win_card.setObjectName("Card")
+        wl = QVBoxLayout(win_card)
+        wl.setContentsMargins(20, 20, 20, 20)
+        wl.setSpacing(10)
+        wt = QLabel("Windows 11 Classic")
+        wt.setObjectName("CardTitle")
+        wd = QLabel(
+            "• Single floating taskbar along the bottom\n"
+            "• Centered Start Menu & pinned apps\n"
+            "• System Tray, Clock & Show Desktop corner on the right\n"
+            "• Familiar Windows 11 muscle memory"
+        )
+        wd.setObjectName("Muted")
+        wd.setWordWrap(True)
+        wbtn = QPushButton("Switch to Windows 11 Layout")
+        wbtn.setObjectName("Primary")
+        wbtn.clicked.connect(lambda: self._apply_layout("win11"))
+        wl.addWidget(wt)
+        wl.addWidget(wd)
+        wl.addStretch()
+        wl.addWidget(wbtn)
+
+        sig_card = QFrame()
+        sig_card.setObjectName("Card")
+        sl = QVBoxLayout(sig_card)
+        sl.setContentsMargins(20, 20, 20, 20)
+        sl.setSpacing(10)
+        st = QLabel("ApexOS Signature Glass")
+        st.setObjectName("CardTitle")
+        sd = QLabel(
+            "• Sleek translucent glass top menu bar\n"
+            "• Centered floating bottom app dock\n"
+            "• Layered ClearClock & custom icons\n"
+            "• Restores your exact ApexOS signature desktop"
+        )
+        sd.setObjectName("Muted")
+        sd.setWordWrap(True)
+        sbtn = QPushButton("Switch to ApexOS Signature")
+        sbtn.clicked.connect(lambda: self._apply_layout("signature"))
+        sl.addWidget(st)
+        sl.addWidget(sd)
+        sl.addStretch()
+        sl.addWidget(sbtn)
+
+        row.addWidget(win_card)
+        row.addWidget(sig_card)
+
+        tip = QFrame()
+        tip.setObjectName("Card")
+        tl = QHBoxLayout(tip)
+        tl.setContentsMargins(16, 12, 16, 12)
+        tl_lbl = QLabel(
+            "Double-click to open files & Windows keyboard shortcuts (Win+E, Win+Shift+S, Ctrl+Shift+Esc) are enabled in both layouts."
+        )
+        tl_lbl.setObjectName("Muted")
+        tl_lbl.setWordWrap(True)
+        tl_btn = QPushButton("KDE Display & Theme Settings")
+        tl_btn.clicked.connect(lambda: launch_detached(["systemsettings"]))
+        tl.addWidget(tl_lbl, stretch=1)
+        tl.addWidget(tl_btn)
+
+        lay.addWidget(title)
+        lay.addWidget(sub)
+        lay.addWidget(self.layout_status_lbl)
+        lay.addLayout(row, stretch=1)
+        lay.addWidget(tip)
+        return page
+
+    def _refresh_layout_status(self) -> None:
+        try:
+            mode = subprocess.check_output(
+                ["/usr/local/bin/apexos-layout-switcher", "status"], text=True
+            ).strip()
+        except Exception:
+            mode = "signature"
+        label = (
+            "ACTIVE LAYOUT: WINDOWS 11 CLASSIC"
+            if mode == "win11"
+            else "ACTIVE LAYOUT: APEXOS SIGNATURE GLASS"
+        )
+        self.layout_status_lbl.setText(label)
+
+    def _apply_layout(self, mode: str) -> None:
+        self.layout_status_lbl.setText("APPLYING LAYOUT...")
+        QApplication.processEvents()
+        subprocess.run(
+            ["/usr/local/bin/apexos-layout-switcher", mode],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        self._refresh_layout_status()
+
+    # --- Page 2: 1-Click Popular Apps ---
+    def _build_apps_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(28, 24, 28, 20)
+        lay.setSpacing(12)
+
+        top_row = QHBoxLayout()
+        header_col = QVBoxLayout()
+        title = QLabel("Popular Apps — 1-Click Install & Remove")
+        title.setObjectName("PageTitle")
+        sub = QLabel(
+            "Installed safely via Flathub (sandboxed apps that never break your system). Want more? Open the full App Store."
+        )
+        sub.setObjectName("Muted")
+        header_col.addWidget(title)
+        header_col.addWidget(sub)
+        top_row.addLayout(header_col, stretch=1)
+
+        store_btn = QPushButton("Full App Store (Discover)")
+        store_btn.setObjectName("Primary")
+        store_btn.clicked.connect(lambda: launch_detached(["plasma-discover"]))
+        shelly_btn = QPushButton("Shelly (Arch/AUR)")
+        shelly_btn.clicked.connect(lambda: launch_detached(["shelly"]))
+        top_row.addWidget(store_btn)
+        top_row.addWidget(shelly_btn)
+        lay.addLayout(top_row)
+
+        self.apps_status = QLabel("Ready — click Install or Uninstall on any app below.")
+        self.apps_status.setObjectName("Muted")
+        self.apps_progress = QProgressBar()
+        self.apps_progress.setVisible(False)
+        self.apps_progress.setTextVisible(False)
+        lay.addWidget(self.apps_status)
+        lay.addWidget(self.apps_progress)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        cl = QVBoxLayout(container)
+        cl.setContentsMargins(0, 4, 8, 8)
+        cl.setSpacing(10)
+
+        last_cat = None
+        for cat, name, desc, app_id in POPULAR_APPS:
+            if cat != last_cat:
+                cat_lbl = QLabel(cat)
+                cat_lbl.setObjectName("SectionLabel")
+                cl.addWidget(cat_lbl)
+                last_cat = cat
+
+            row_card = QFrame()
+            row_card.setObjectName("Card")
+            rl = QHBoxLayout(row_card)
+            rl.setContentsMargins(14, 10, 14, 10)
+
+            info = QVBoxLayout()
+            info.setSpacing(2)
+            nl = QLabel(name)
+            nl.setObjectName("CardTitle")
+            dl = QLabel(desc)
+            dl.setObjectName("Muted")
+            dl.setWordWrap(True)
+            info.addWidget(nl)
+            info.addWidget(dl)
+
+            btn = QPushButton("Install")
+            btn.setFixedWidth(118)
+            btn.clicked.connect(
+                lambda _checked=False, aid=app_id, nm=name: self._toggle_flatpak(
+                    aid, nm
+                )
+            )
+            self.app_buttons[app_id] = btn
+
+            rl.addLayout(info, stretch=1)
+            rl.addWidget(btn)
+            cl.addWidget(row_card)
+
+        cl.addStretch()
+        scroll.setWidget(container)
+        lay.addWidget(scroll, stretch=1)
+        return page
+
+    def _refresh_flatpak_buttons(self) -> None:
+        installed = get_installed_flatpaks()
+        busy = self.flatpak_proc.state() != QProcess.ProcessState.NotRunning
+        for _cat, _name, _desc, app_id in POPULAR_APPS:
+            btn = self.app_buttons.get(app_id)
+            if not btn:
+                continue
+            btn.setEnabled(not busy)
+            if app_id in installed:
+                btn.setText("Uninstall")
+                btn.setObjectName("Danger")
+            else:
+                btn.setText("Install")
+                btn.setObjectName("Primary")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    def _toggle_flatpak(self, app_id: str, name: str) -> None:
+        if self.flatpak_proc.state() != QProcess.ProcessState.NotRunning:
+            return
+        if not shutil.which("flatpak"):
+            self.apps_status.setText("Flatpak is not available on this system.")
+            return
+
+        installed = get_installed_flatpaks()
+        self.active_app_id = app_id
+        for b in self.app_buttons.values():
+            b.setEnabled(False)
+        self.apps_progress.setRange(0, 0)
+        self.apps_progress.setVisible(True)
+
+        # Ensure Flathub user remote exists before installing
+        subprocess.run(
+            [
+                "flatpak",
+                "remote-add",
+                "--user",
+                "--if-not-exists",
+                "flathub",
+                "https://dl.flathub.org/repo/flathub.flatpakrepo",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+        if app_id in installed:
+            self.active_app_action = "remove"
+            self.apps_status.setText(f"Removing {name}...")
+            self.flatpak_proc.start(
+                "flatpak", ["uninstall", "-y", "--noninteractive", app_id]
+            )
+        else:
+            self.active_app_action = "install"
+            self.apps_status.setText(
+                f"Downloading and installing {name} (this may take a minute on first app)..."
+            )
+            self.flatpak_proc.start(
+                "flatpak",
+                ["install", "--user", "-y", "--noninteractive", "flathub", app_id],
+            )
+
+    def _on_flatpak_finished(
+        self, exit_code: int, _exit_status: QProcess.ExitStatus
+    ) -> None:
+        self.apps_progress.setVisible(False)
+        if exit_code == 0:
+            verb = "Installed" if self.active_app_action == "install" else "Removed"
+            self.apps_status.setText(f"{verb} successfully! Check your Start Menu.")
+        else:
+            self.apps_status.setText(
+                "Could not complete the change — check your internet connection and try again."
+            )
+        self._refresh_flatpak_buttons()
+
+    # --- Page 3: System & Safety ---
+    def _build_system_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(28, 26, 28, 26)
+        lay.setSpacing(16)
+
+        title = QLabel("System Maintenance & Hardware")
+        title.setObjectName("PageTitle")
+        sub = QLabel(
+            "Graphical tools for updates, system restore points, printers, firewall security, and GPU controls."
+        )
+        sub.setObjectName("Muted")
+        sub.setWordWrap(True)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
+        grid.addWidget(
+            self._make_card(
+                "ApexOS Update Center",
+                "One-click system, driver, and Flatpak updates without using a terminal.",
+                "Open Updater",
+                lambda: launch_detached(["/usr/local/bin/apexos-updater"]),
+                primary=True,
+            ),
+            0,
+            0,
+        )
+        grid.addWidget(
+            self._make_card(
+                "System Restore (Timeshift)",
+                "Create automatic restore points before changes so you can roll back anytime.",
+                "Open Timeshift",
+                lambda: launch_detached(["timeshift-launcher"]),
+            ),
+            0,
+            1,
+        )
+        grid.addWidget(
+            self._make_card(
+                "Printers & Scanners",
+                "Add Wi-Fi or USB printers visually in seconds.",
+                "Configure Printers",
+                lambda: launch_detached(["system-config-printer"]),
+            ),
+            1,
+            0,
+        )
+        grid.addWidget(
+            self._make_card(
+                "Firewall Protection",
+                "Simple on/off switch and rules for network protection (like Windows Firewall).",
+                "Open Firewall",
+                lambda: launch_detached(["gufw"]),
+            ),
+            1,
+            1,
+        )
+        grid.addWidget(
+            self._make_card(
+                "Task Manager",
+                "Inspect CPU, GPU, memory usage, and close unresponsive apps.",
+                "Open Task Manager",
+                lambda: launch_detached(["plasma-systemmonitor"]),
+            ),
+            2,
+            0,
+        )
+        grid.addWidget(
+            self._make_card(
+                "NVIDIA Graphics Settings",
+                "Adjust display refresh rates, G-SYNC, and GPU performance profiles.",
+                "Open NVIDIA Settings",
+                lambda: launch_detached(["nvidia-settings"]),
+            ),
+            2,
+            1,
+        )
+
+        lay.addWidget(title)
+        lay.addWidget(sub)
+        lay.addLayout(grid, stretch=1)
+        return page
+
+    # --- Page 4: Windows Shortcuts Cheat Sheet ---
+    def _build_shortcuts_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(28, 26, 28, 26)
+        lay.setSpacing(14)
+
+        title = QLabel("Windows 11 Shortcuts — Built Right In")
+        title.setObjectName("PageTitle")
+        sub = QLabel(
+            "ApexOS pre-maps the keyboard shortcuts you already know from Windows so everything feels natural immediately."
+        )
+        sub.setObjectName("Muted")
+        sub.setWordWrap(True)
+
+        table = QTableWidget(len(SHORTCUTS), 2)
+        table.setHorizontalHeaderLabels(["Shortcut", "Action in ApexOS"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setColumnWidth(0, 220)
+
+        for idx, (keys, desc) in enumerate(SHORTCUTS):
+            k_item = QTableWidgetItem(keys)
+            k_item.setForeground(Qt.GlobalColor.cyan)
+            d_item = QTableWidgetItem(desc)
+            table.setItem(idx, 0, k_item)
+            table.setItem(idx, 1, d_item)
+            table.setRowHeight(idx, 36)
+
+        lay.addWidget(title)
+        lay.addWidget(sub)
+        lay.addWidget(table, stretch=1)
+        return page
+
+
+def main() -> int:
+    app = QApplication(sys.argv)
+    app.setApplicationName("ApexOS Welcome")
+    win = ApexWelcomeWindow()
+    win.show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -9,6 +9,8 @@ mkdir -p "${HOME}/.config" "${HOME}/Desktop"
 # Place clean desktop shortcuts for quick access (installer shortcut appears only in live session)
 for app in \
   /usr/share/applications/install-apexos.desktop \
+  /usr/share/applications/apexos-welcome.desktop \
+  /usr/share/applications/org.kde.discover.desktop \
   /usr/share/applications/mydesktop-club.desktop \
   /usr/share/applications/steam.desktop \
   /usr/share/applications/brave-browser.desktop; do
@@ -17,6 +19,16 @@ for app in \
     chmod +x "${HOME}/Desktop/$(basename "$app")" || true
   fi
 done
+
+# Configure Windows 11 muscle-memory defaults (double-click files + Win+E, Win+Shift+S, Ctrl+Shift+Esc, Win+D)
+KWC="$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)"
+if [[ -n "${KWC}" ]]; then
+  "${KWC}" --file kdeglobals --group KDE --key SingleClick false || true
+  "${KWC}" --file kglobalshortcutsrc --group kwin --key "Show Desktop" "Meta+D,Meta+D,Peek at Desktop" || true
+  "${KWC}" --file kglobalshortcutsrc --group "services" --group "org.kde.dolphin.desktop" --key "_launch" "Meta+E" || true
+  "${KWC}" --file kglobalshortcutsrc --group "services" --group "org.kde.plasma-systemmonitor.desktop" --key "_launch" "Ctrl+Shift+Esc" || true
+  "${KWC}" --file kglobalshortcutsrc --group "services" --group "org.kde.spectacle.desktop" --key "RectangularRegionScreenShot" "Meta+Shift+S" || true
+fi
 
 # Wait briefly for PlasmaShell D-Bus service to come up on first login
 for _ in $(seq 1 20); do
@@ -48,14 +60,21 @@ for (var i = 0; i < pList.length; i++) {
   fi
 fi
 
-# Apply default ApexOS Obsidian Glass wallpaper in KDE Plasma
-if command -v plasma-apply-wallpaperimage >/dev/null 2>&1; then
+# Apply default ApexOS Obsidian Glass wallpaper in KDE Plasma (skip if custom theme already configured wallpaper)
+if command -v plasma-apply-wallpaperimage >/dev/null 2>&1 && [[ ! -f "${HOME}/.config/apexos-theme-installed" ]]; then
   plasma-apply-wallpaperimage /usr/share/wallpapers/ApexOS/contents/images/3840x2160.jpg || true
 fi
 
-# Enable Flathub for Shelly Flatpak support
+# Enable Flathub for Discover App Store, ApexOS Welcome, and Shelly Flatpak support
 if command -v flatpak >/dev/null 2>&1; then
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+fi
+
+# On an installed system (not the Live USB installer), launch ApexOS Welcome automatically on first login
+if [[ ! -f /usr/share/applications/install-apexos.desktop && -x /usr/local/bin/apexos-welcome ]]; then
+  mkdir -p "${HOME}/.config/autostart"
+  cp -n /usr/share/applications/apexos-welcome.desktop "${HOME}/.config/autostart/" || true
+  setsid /usr/local/bin/apexos-welcome >/dev/null 2>&1 &
 fi
 
 touch "${MARKER}"

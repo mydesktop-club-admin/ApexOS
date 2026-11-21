@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ApexOS 1-Click Desktop Layout Switcher
+# Usage:
+#   apexos-layout-switcher win11       # Windows 11 Classic centered taskbar
+#   apexos-layout-switcher signature   # ApexOS Signature Glass Dock (popky2)
+#   apexos-layout-switcher status      # Prints current active layout ID
+# ==============================================================================
+set -euo pipefail
+
+MODE="${1:-status}"
+CONF_DIR="${HOME}/.config"
+APPLETS_RC="${CONF_DIR}/plasma-org.kde.plasma.desktop-appletsrc"
+BACKUP_SIG="${CONF_DIR}/apexos-layout-signature.rc"
+STATE_FILE="${CONF_DIR}/apexos-layout.state"
+LAUNCHER_ICON="/usr/share/pixmaps/apexos-launcher-white.svg"
+[[ ! -f "${LAUNCHER_ICON}" ]] && LAUNCHER_ICON="start-here-kde"
+
+mkdir -p "${CONF_DIR}"
+
+run_plasma_js() {
+  local js="$1"
+  local qdbus_bin
+  qdbus_bin="$(command -v qdbus6 || command -v qdbus || true)"
+  if [[ -n "${qdbus_bin}" ]]; then
+    "${qdbus_bin}" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "${js}"
+  else
+    dbus-send --session --dest=org.kde.plasmashell --type=method_call \
+      /PlasmaShell org.kde.PlasmaShell.evaluateScript "string:${js}"
+  fi
+}
+
+case "${MODE}" in
+  status)
+    if [[ -f "${STATE_FILE}" ]]; then
+      cat "${STATE_FILE}"
+    else
+      echo "signature"
+    fi
+    ;;
+
+  win11)
+    # Preserve the user's original Signature (popky2) layout once before switching
+    if [[ ! -f "${BACKUP_SIG}" && -f "${APPLETS_RC}" ]]; then
+      cp -f "${APPLETS_RC}" "${BACKUP_SIG}"
+    fi
+
+    WIN11_JS="
+var allPanels = panels();
+for (var i = 0; i < allPanels.length; i++) {
+  allPanels[i].remove();
+}
+
+var panel = new Panel();
+panel.location = 'bottom';
+panel.height = 46;
+panel.floating = true;
+panel.hiding = 'none';
+
+// Left expanding spacer centers the Start Menu + pinned apps (Windows 11 style)
+panel.addWidget('org.kde.plasma.panelspacer');
+
+var kickoff = panel.addWidget('org.kde.plasma.kickoff');
+kickoff.currentConfigGroup = ['General'];
+kickoff.writeConfig('icon', '${LAUNCHER_ICON}');
+kickoff.writeConfig('favoritesPortedToKAstats', 'true');
+
+var tasks = panel.addWidget('org.kde.plasma.icontasks');
+tasks.currentConfigGroup = ['General'];
+tasks.writeConfig('launchers', [
+  'applications:org.kde.dolphin.desktop',
+  'applications:brave-browser.desktop',
+  'applications:org.kde.discover.desktop',
+  'applications:steam.desktop',
+  'applications:apexos-welcome.desktop'
+]);
+tasks.writeConfig('groupingStrategy', '1');
+tasks.writeConfig('indicateAudioStreams', 'true');
+
+// Right expanding spacer pushes system tray, clock & Show Desktop to the right corner
+panel.addWidget('org.kde.plasma.panelspacer');
+
+panel.addWidget('org.kde.plasma.systemtray');
+
+var clock = panel.addWidget('org.kde.plasma.digitalclock');
+clock.currentConfigGroup = ['Appearance'];
+clock.writeConfig('showDate', 'true');
+clock.writeConfig('dateFormat', 'shortDate');
+
+panel.addWidget('org.kde.plasma.showdesktop');
+"
+    run_plasma_js "${WIN11_JS}"
+    echo "win11" > "${STATE_FILE}"
+    echo "Applied Windows 11 Classic layout."
+    ;;
+
+  signature)
+    # Prefer the backed-up Signature layout, falling back to /etc/skel if available
+    RESTORE_SRC=""
+    if [[ -f "${BACKUP_SIG}" ]]; then
+      RESTORE_SRC="${BACKUP_SIG}"
+    elif [[ -f /etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc ]]; then
+      RESTORE_SRC="/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc"
+    fi
+
+    if [[ -n "${RESTORE_SRC}" ]]; then
+      cp -f "${RESTORE_SRC}" "${APPLETS_RC}"
+      if command -v kquitapp6 >/dev/null 2>&1; then
+        kquitapp6 plasmashell >/dev/null 2>&1 || true
+      else
+        pkill -x plasmashell >/dev/null 2>&1 || true
+      fi
+      sleep 1
+      setsid plasmashell --replace >/dev/null 2>&1 &
+    else
+      # Fallback clean Signature layout (translucent top bar + centered bottom dock)
+      SIG_JS="
+var allPanels = panels();
+for (var i = 0; i < allPanels.length; i++) {
+  allPanels[i].remove();
+}
+
+// Top Menu Bar
+var topBar = new Panel();
+topBar.location = 'top';
+topBar.height = 30;
+topBar.floating = false;
+
+var kickoff = topBar.addWidget('org.kde.plasma.kickoff');
+kickoff.currentConfigGroup = ['General'];
+kickoff.writeConfig('icon', '${LAUNCHER_ICON}');
+
+topBar.addWidget('org.kde.plasma.appmenu');
+topBar.addWidget('org.kde.plasma.panelspacer');
+topBar.addWidget('org.kde.plasma.systemtray');
+topBar.addWidget('org.kde.plasma.digitalclock');
+
+// Centered Floating Bottom Dock
+var dock = new Panel();
+dock.location = 'bottom';
+dock.height = 54;
+dock.floating = true;
+dock.alignment = 'center';
+dock.lengthMode = 'fit';
+
+var tasks = dock.addWidget('org.kde.plasma.icontasks');
+tasks.currentConfigGroup = ['General'];
+tasks.writeConfig('launchers', [
+  'applications:org.kde.dolphin.desktop',
+  'applications:brave-browser.desktop',
+  'applications:org.kde.discover.desktop',
+  'applications:steam.desktop',
+  'applications:apexos-welcome.desktop'
+]);
+dock.addWidget('org.kde.plasma.trash');
+"
+      run_plasma_js "${SIG_JS}"
+    fi
+    echo "signature" > "${STATE_FILE}"
+    echo "Applied ApexOS Signature Glass Dock layout."
+    ;;
+
+  *)
+    echo "Usage: apexos-layout-switcher [win11|signature|status]" >&2
+    exit 1
+    ;;
+esac

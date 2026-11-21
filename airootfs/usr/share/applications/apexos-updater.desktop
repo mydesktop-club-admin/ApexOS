@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ApexOS Update Center
+GenericName=System & App Updater
+Comment=Safely update ApexOS, drivers, and Flatpak apps in one click
+Exec=/usr/local/bin/apexos-updater
+Icon=system-software-update
+Terminal=false
+Categories=System;Settings;PackageManager;
+Keywords=update;upgrade;pacman;flatpak;drivers;apexos;
+StartupNotify=true
