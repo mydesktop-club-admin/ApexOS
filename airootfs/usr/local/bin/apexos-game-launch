@@ -4,14 +4,28 @@
 # Usage in Steam -> Game Properties -> Launch Options:
 #   apexos-game-launch %command%
 #   MANGOHUD=1 apexos-game-launch %command%
+#   WAYLAND=1 apexos-game-launch %command%
 # ==============================================================================
 
+# Force dedicated NVIDIA GPU on hybrid Intel/AMD + NVIDIA systems
+export __NV_PRIME_RENDER_OFFLOAD=1
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export __VK_LAYER_NV_optimus=NVIDIA_only
+
+# Proton / NVIDIA / NTSYNC / DLSS performance stack
+export PROTON_USE_NTSYNC=1
 export PROTON_ENABLE_NVAPI=1
 export PROTON_HIDE_NVIDIA_GPU=0
+export PROTON_DLSS_UPGRADE=1
 export DXVK_STATE_CACHE=1
 export __GL_SHADER_DISK_CACHE=1
 export __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 export __GL_THREADED_OPTIMIZATIONS=1
+
+# Optional native Wayland driver in Proton (set WAYLAND=1 before command)
+if [[ "${WAYLAND:-0}" == "1" ]]; then
+  export PROTON_ENABLE_WAYLAND=1
+fi
 
 if [[ "${MANGOHUD:-0}" == "1" ]] && command -v mangohud >/dev/null 2>&1; then
   exec gamemoderun mangohud "$@"

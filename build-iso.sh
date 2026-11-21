@@ -125,10 +125,18 @@ if [[ -n "${NV_VER}" ]]; then
   done
 fi
 
-# 4. Stage active package list, relocate Calamares overlay to prevent pacman conflicts, and build ISO
+# 4. Stage active package list, unpack custom theme bundle if present, relocate Calamares overlay, and build ISO
 echo "[4/5] Building bootable ApexOS ISO (this takes ~5-10 minutes)..."
 cp "${SCRIPT_DIR}/packages.x86_64" "${SCRIPT_DIR}/.packages.x86_64.bak"
 mv "${TMP_PKG_FILE}" "${SCRIPT_DIR}/packages.x86_64"
+
+if [[ -f "${SCRIPT_DIR}/apexos-theme-bundle.tar.zst" ]]; then
+  echo "  -> Extracting custom ApexOS KDE desktop theme bundle (apexos-theme-bundle.tar.zst) into airootfs..."
+  tar --zstd -xf "${SCRIPT_DIR}/apexos-theme-bundle.tar.zst" -C "${SCRIPT_DIR}/airootfs"
+elif compgen -G "${SCRIPT_DIR}/apexos-theme-bundle.tar.zst.part*" >/dev/null; then
+  echo "  -> Rejoining & extracting split ApexOS KDE desktop theme bundle into airootfs..."
+  cat "${SCRIPT_DIR}"/apexos-theme-bundle.tar.zst.part* | tar --zstd -xf - -C "${SCRIPT_DIR}/airootfs"
+fi
 
 CALAMARES_STAGED=0
 if [[ -d "${SCRIPT_DIR}/airootfs/etc/calamares" ]]; then

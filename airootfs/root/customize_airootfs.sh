@@ -35,14 +35,20 @@ systemctl enable fstrim.timer || true
 # Enable sched-ext loader if present
 systemctl enable scx_loader.service || true
 
-# Enable NVIDIA suspend/hibernate/resume VRAM preservation services
+# Enable NVIDIA Dynamic Boost (laptop GPU wattage boost) & suspend/hibernate VRAM preservation
+systemctl enable nvidia-powerd.service || true
 systemctl enable nvidia-suspend.service || true
 systemctl enable nvidia-hibernate.service || true
 systemctl enable nvidia-resume.service || true
 
-# 4. Pre-enable Breeze Dark for KDE Plasma
+# Skip waiting for network during boot (shaves 2-5 seconds off boot time)
+systemctl disable NetworkManager-wait-online.service || true
+systemctl mask NetworkManager-wait-online.service || true
+
+# 4. Pre-enable Breeze Dark for KDE Plasma (only if no custom theme bundle provided kdeglobals)
 mkdir -p /etc/skel/.config
-cat > /etc/skel/.config/kdeglobals <<'EOF'
+if [[ ! -f /etc/skel/.config/kdeglobals ]]; then
+  cat > /etc/skel/.config/kdeglobals <<'EOF'
 [General]
 ColorScheme=BreezeDark
 Name=Breeze Dark
@@ -51,6 +57,7 @@ Name=Breeze Dark
 LookAndFeelPackage=org.kde.breezedark.desktop
 SingleClick=false
 EOF
+fi
 
 # Sync skel updates to live user
 cp -rn /etc/skel/. /home/apex/ || true
